@@ -391,6 +391,27 @@ canvas.addEventListener('mousemove', ev=>{
 });
 canvas.addEventListener('mouseup', ()=>{ dragging=false; returnCanToStart(); });
 canvas.addEventListener('mouseleave', ()=>{ dragging=false; returnCanToStart(); });
+// Eventos táctiles para móviles
+canvas.addEventListener('touchstart', ev => {
+  const rect = canvas.getBoundingClientRect();
+  const touch = ev.touches[0];
+  const mx = touch.clientX - rect.left, my = touch.clientY - rect.top;
+  if(mx >= canPos.x && mx <= canPos.x + canPos.w && my >= canPos.y && my <= canPos.y + canPos.h){
+    dragging = true; offsetX = mx - canPos.x; offsetY = my - canPos.y;
+    ev.preventDefault();
+  }
+});
+canvas.addEventListener('touchmove', ev => {
+  if(dragging){
+    const rect = canvas.getBoundingClientRect();
+    const touch = ev.touches[0];
+    canPos.x = touch.clientX - rect.left - offsetX;
+    canPos.y = touch.clientY - rect.top - offsetY;
+    ev.preventDefault();
+  }
+});
+canvas.addEventListener('touchend', () => { dragging = false; returnCanToStart(); });
+canvas.addEventListener('touchcancel', () => { dragging = false; returnCanToStart(); });
 
 function returnCanToStart(){
   const anim = setInterval(()=>{
@@ -411,3 +432,4 @@ animate();
 </script>
 </body>
 </html>
+
