@@ -1,9 +1,9 @@
-
-
+<!DOCTYPE html>
 <html lang="es">
-<head>  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Flor interactiva</title>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Flor interactiva (fix móviles)</title>
   <style>
     html,body{
       height:100%;
@@ -13,31 +13,147 @@
       justify-content:center;
       background:rgb(203, 243, 192);
       font-family: Arial, sans-serif;
-      color: #fff;
-      user-select: none;
-// función para actualizar tamaño
-function resizeCanvas(){
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    W = canvas.width;
-    H = canvas.height;
-    baseX = W / 2;
-    baseY = H - 40;
-    canStartPos.x = 100;
-    canStartPos.y = H - 150;
-    if(!dragging){
-      canPos.x = canStartPos.x;
-      canPos.y = canStartPos.y;
+      color:#fff;
+      user-select:none;
+      -webkit-user-select:none;
+      -webkit-touch-callout:none;
+      touch-action:none; /* evita scroll/zoom en gestos */
+      overscroll-behavior:none;
+      overflow:hidden;
     }
+    canvas{
+      display:block;
+      background: rgb(179, 236, 165);
+      border-radius:8px;
+      box-shadow: 0 6px 25px rgba(0,0,0,0.7);
+      touch-action:none; /* pointer events consistentes */
+    }
+    /* Overlay para mostrar imagen ampliada */
+    #overlay{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,0.85);
+      display:flex; align-items:center; justify-content:center; flex-direction:column;
+      visibility:hidden; opacity:0; transition:opacity .3s ease;
+      z-index: 10;
+    }
+    #overlay.show{ visibility:visible; opacity:1; }
+    #overlay img{ max-width:80%; max-height:70%; border-radius:12px; box-shadow:0 0 20px rgba(255,255,255,.8); }
+    #overlayText{ margin-top:20px; color:#fff; font-size:1.3em; text-align:center; width:100%; padding: 0 16px; }
+    .hidden{ display:none; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <!-- Audio principal y de pétalos (un solo elemento para evitar solapes) -->
+  <audio id="mainSong" src="principal.mp3" preload="auto" playsinline class="hidden"></audio>
+  <audio id="petalAudio" preload="auto" playsinline class="hidden"></audio>
+
+  <!-- Overlay para imágenes -->
+  <div id="overlay" aria-hidden="true">
+    <img id="bigImage" alt="Imagen del pétalo" />
+    <div id="overlayText"></div>
+  </div>
+
+<script>
+/* =====================
+   Estado y utilidades
+   ===================== */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = window.innerWidth, H = window.innerHeight;
+let baseX = W/2, baseY = H - 40;
+
+// Crecimiento
+const MAX_STAGES = 6;
+let stage = 0, watering = false, waterTimer = 0;
+let stemCurrent = 40, stemTarget = 40;
+let leafOpacity = 0, petalScale = 0, blossomOpen = 0;
+
+// Regadera
+let canPos = { x: 100, y: H - 150, w: 120, h: 90 };
+const canStartPos = { x: 100, y: H - 150 };
+let dragging = false, offsetX = 0, offsetY = 0;
+let canAngle = 0;
+let returnAnim = null; // para evitar múltiples intervals
+
+const scaleFactor = 1.4;
+
+// Recursos de pétalos
+const petalData = [
+  {img:"img1.jpg", audio:"audio1.mp3", text:"Eres mi inspiración 💖"},
+  {img:"img2.jpg", audio:"audio2.mp3", text:"Contigo todo es mejor 🌹"},
+  {img:"img3.jpg", audio:"audio3.mp3", text:"Eres mi felicidad ✨"},
+  {img:"img4.jpg", audio:"audio4.mp3", text:"Gracias por existir 💕"},
+  {img:"img5.jpg", audio:"audio5.mp3", text:"Nuestro amor florece 🌸"},
+  {img:"img6.jpg", audio:"audio6.mp3", text:"Eres mi sol ☀️"},
+  {img:"img7.jpg", audio:"audio7.mp3", text:"Te quiero infinito 💫"},
+  {img:"img8.jpg", audio:"audio8.mp3", text:"Eres mi todo ❤️"}
+];
+
+let petalHitboxes = []; // zonas clicables
+let mostrarMensajeCentral = false;
+let mensajeCentral = "";
+
+const mainSong = document.getElementById('mainSong');
+const petalAudio = document.getElementById('petalAudio');
+const overlay = document.getElementById('overlay');
+const bigImage = document.getElementById('bigImage');
+const overlayText = document.getElementById('overlayText');
+let overlayOpen = false;
+
+// Pre-carga de imágenes (evita ver la anterior pegada en móviles)
+const imageCache = new Map();
+function preloadImages(data){
+  data.forEach(({img})=>{
+    const im = new Image();
+    im.decoding = 'async';
+    im.loading = 'eager';
+    im.src = img;
+    imageCache.set(img, im);
+  });
 }
-window.addEventListener("resize", resizeCanvas);
+preloadImages(petalData);
+
+// Pre-carga ligera de audios (sin reproducir)
+function warmAudio(src){
+  // alterna src para forzar precarga controlada
+  const a = document.createElement('audio');
+  a.preload = 'metadata';
+  a.src = src;
+}
+petalData.forEach(p=>warmAudio(p.audio));
+
+// Evitar reproducir dos audios a la vez
+function stopAllAudio(){
+  [mainSong, petalAudio].forEach(a=>{ try{ a.pause(); a.currentTime = 0; }catch(_){} });
+}
+
+// iOS/Safari: desbloquear audio en primer gesto
+let audioUnlocked = false;
+function unlockAudio(){
+  if(audioUnlocked) return;
+  try { mainSong.play().then(()=>{ mainSong.pause(); mainSong.currentTime = 0; audioUnlocked = true; }).catch(()=>{}); } catch(_){}
+}
+
+/* =====================
+   Redimensionado
+   ===================== */
+function resizeCanvas(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  W = canvas.width; H = canvas.height;
+  baseX = W/2; baseY = H - 40;
+  canStartPos.x = 100; canStartPos.y = H - 150;
+  if(!dragging){ canPos.x = canStartPos.x; canPos.y = canStartPos.y; }
+}
+window.addEventListener('resize', resizeCanvas, { passive: true });
 resizeCanvas();
 
-function animate(){
-  updatePhysics();
-  drawScene();
-  requestAnimationFrame(animate);
-}
+/* =====================
+   Animación principal
+   ===================== */
+function animate(){ updatePhysics(); drawScene(); requestAnimationFrame(animate); }
 
 function updatePhysics(){
   stemTarget = 40 + stage * 40;
@@ -52,6 +168,7 @@ function updatePhysics(){
   petalScale += (petalGoal - petalScale)*0.1;
   blossomOpen += (petalScale - blossomOpen)*0.08;
 
+  // zona de riego
   if (canPos.x > baseX-80 && canPos.x < baseX+80 &&
       canPos.y > baseY - stemCurrent - 120 && canPos.y < baseY){
     if (!watering) doWater();
@@ -60,14 +177,12 @@ function updatePhysics(){
 
 function drawScene(){
   ctx.clearRect(0,0,W,H);
-
   // suelo
   const grad = ctx.createLinearGradient(0,H-120,0,H);
   grad.addColorStop(0,'rgba(0,0,0,0.4)');
   grad.addColorStop(1,'rgba(0,0,0,0.8)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,H-120,W,120);
-  ctx.strokeStyle = "#233"; ctx.lineWidth = 2;
+  ctx.fillStyle = grad; ctx.fillRect(0,H-120,W,120);
+  ctx.strokeStyle = '#233'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(0, baseY+6); ctx.lineTo(W, baseY+6); ctx.stroke();
 
   // flor
@@ -78,20 +193,19 @@ function drawScene(){
 
   // regadera
   drawWaterCan(ctx, canPos.x, canPos.y, 1.0, watering);
+
+  // mensaje central
   if (mostrarMensajeCentral) {
     ctx.save();
-    ctx.font = "bold 38px Arial";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#fff";
-    ctx.shadowColor = "#ff69b4";
+    ctx.font = 'bold 38px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#ff69b4';
     ctx.shadowBlur = 18;
     ctx.globalAlpha = 0.95;
     const lineas = mensajeCentral.split('\n');
     ctx.fillText(lineas[0], W/2, H/2 - 20);
-    if(lineas[1]) {
-      ctx.font = "28px Arial";
-      ctx.fillText(lineas[1], W/2, H/2 + 20);
-    }
+    if(lineas[1]) { ctx.font = '28px Arial'; ctx.fillText(lineas[1], W/2, H/2 + 20); }
     ctx.restore();
   }
 }
@@ -100,186 +214,245 @@ function drawFlower(x,y,openFactor){
   ctx.save(); ctx.translate(x,y);
   const petals=8, petalMaxRadius=62*scaleFactor, petalSize=36*scaleFactor, spread=openFactor;
   petalHitboxes = []; // limpiar zonas
-
   for(let i=0;i<petals;i++){
     const ang=(Math.PI*2/petals)*i;
     const rx=Math.cos(ang)*(20+petalMaxRadius*spread);
     const ry=Math.sin(ang)*(12+petalMaxRadius*spread*0.9);
     ctx.save(); ctx.translate(rx,ry);
     ctx.rotate(ang+Math.PI/8*(1-spread));
-    // Cambia el gradiente a tonos amarillos
     const g=ctx.createLinearGradient(-petalSize,0,petalSize,0);
-    g.addColorStop(0,"#fff700");   // Amarillo claro
-    g.addColorStop(0.6,"#ffe066"); // Amarillo medio
-    g.addColorStop(1,"#ffd700");   // Amarillo oro
+    g.addColorStop(0,'#fff700');
+    g.addColorStop(0.6,'#ffe066');
+    g.addColorStop(1,'#ffd700');
     ctx.fillStyle=g;
     ctx.beginPath(); ctx.ellipse(0,0,petalSize*(0.6+0.4*spread),petalSize*(1.1-0.2*spread),0,0,Math.PI*2); ctx.fill();
     ctx.restore();
-
-    // guardar área clicable ⬅️ añadido
     petalHitboxes.push({x:x+rx, y:y+ry, r:petalSize, index:i});
   }
-
-  const baseCenter = 20;
-  const maxCenter = 50;
+  const baseCenter = 20; const maxCenter = 50;
   const centerR = (baseCenter + (maxCenter - baseCenter) * blossomOpen) * scaleFactor;
-  ctx.beginPath(); ctx.fillStyle="#e6b800";
+  ctx.beginPath(); ctx.fillStyle='#e6b800';
   ctx.ellipse(-10+10*openFactor,6*openFactor,centerR,centerR*0.95,0,0,Math.PI*2); ctx.fill();
   ctx.restore();
 }
 
-// detectar clic en pétalos
-canvas.addEventListener("click", ev=>{
-  if(stage < MAX_STAGES) return; // solo cuando la flor está completa
+/* =====================
+   Interacción (unificado)
+   ===================== */
+function withinCan(mx,my){
+  return (mx>=canPos.x && mx<=canPos.x+canPos.w && my>=canPos.y && my<=canPos.y+canPos.h);
+}
+
+function handlePointerDown(ev){
+  unlockAudio();
   const rect = canvas.getBoundingClientRect();
-  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-  for(let p of petalHitboxes){
+  const mx = (ev.clientX ?? ev.touches?.[0]?.clientX) - rect.left;
+  const my = (ev.clientY ?? ev.touches?.[0]?.clientY) - rect.top;
+  if(withinCan(mx,my)){
+    dragging = true; offsetX = mx - canPos.x; offsetY = my - canPos.y;
+    ev.preventDefault();
+  }
+}
+
+function handlePointerMove(ev){
+  if(dragging){
+    const rect = canvas.getBoundingClientRect();
+    const touch = ev.touches?.[0];
+    const cx = (touch? touch.clientX : ev.clientX) - rect.left;
+    const cy = (touch? touch.clientY : ev.clientY) - rect.top;
+    canPos.x = cx - offsetX; canPos.y = cy - offsetY;
+    ev.preventDefault();
+  }
+}
+
+function handlePointerUp(){ dragging = false; returnCanToStart(); }
+
+function handleTap(ev){
+  // Lógica en un solo handler para evitar triple-disparo en móviles
+  if(stage < MAX_STAGES && !mostrarMensajeCentral) return; // solo cuando está completa o está el mensaje
+
+  const rect = canvas.getBoundingClientRect();
+  const mx = (ev.clientX ?? ev.changedTouches?.[0]?.clientX) - rect.left;
+  const my = (ev.clientY ?? ev.changedTouches?.[0]?.clientY) - rect.top;
+
+  // Si hay mensaje central, click fuera del centro lo cierra
+  const centroX = baseX, centroY = baseY - stemCurrent * scaleFactor;
+  const dist = Math.hypot(mx - centroX, my - centroY);
+
+  if(mostrarMensajeCentral){
+    if (dist >= 60){ // clic fuera
+      mostrarMensajeCentral = false; stopAllAudio();
+    }
+    return;
+  }
+
+  // Primero detecta si tocaron el centro
+  if (dist < 60){
+    mensajeCentral = 'Feliz 21 de septiembre 💕\nGracias por estar en mi vida';
+    mostrarMensajeCentral = true;
+    stopAllAudio();
+    mainSong.currentTime = 0;
+    mainSong.play().catch(()=>{});
+    return;
+  }
+
+  // Luego, verifica pétalos
+  for(const p of petalHitboxes){
     const dx = mx - p.x, dy = my - p.y;
-    if(dx*dx+dy*dy < (p.r*0.8)*(p.r*0.8)){ // dentro del pétalo
+    if(dx*dx + dy*dy < (p.r*0.8)*(p.r*0.8)){
       openPetal(p.index);
       break;
     }
   }
-});
-canvas.addEventListener("click", ev => {
-  if(stage < MAX_STAGES) return; // Solo cuando la flor está completa
-  const rect = canvas.getBoundingClientRect();
-  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-  // Centro de la flor
-  const centroX = baseX, centroY = baseY - stemCurrent * scaleFactor;
-  const dist = Math.hypot(mx - centroX, my - centroY);
-  if (dist < 60) { // Ajusta el radio si lo deseas
-    mensajeCentral = "Feliz 21 de septiembre 💕\nGracias por estar en mi vida";
-    mostrarMensajeCentral = true;
-    mainSong.currentTime = 0;
-    mainSong.play();
-    
-  }
-});
-canvas.addEventListener("click", ev => {
-  if (!mostrarMensajeCentral) return;
-  const rect = canvas.getBoundingClientRect();
-  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-  // Centro de la flor
-  const centroX = baseX, centroY = baseY - stemCurrent * scaleFactor;
-  const dist = Math.hypot(mx - centroX, my - centroY);
-  if (dist >= 60) { // Si el clic NO es en el centro
-    mostrarMensajeCentral = false;
-    mainSong.pause();
-    mainSong.currentTime = 0;
-  }
+}
+
+canvas.addEventListener('mousedown', handlePointerDown, { passive:false });
+canvas.addEventListener('mousemove', handlePointerMove, { passive:false });
+window.addEventListener('mouseup', handlePointerUp, { passive:true });
+
+canvas.addEventListener('touchstart', handlePointerDown, { passive:false });
+canvas.addEventListener('touchmove', handlePointerMove, { passive:false });
+canvas.addEventListener('touchend', (e)=>{ handlePointerUp(e); handleTap(e); }, { passive:false });
+canvas.addEventListener('click', handleTap, { passive:true });
+
+// Cerrar overlay con tap/click
+overlay.addEventListener('click', ()=>{
+  hideOverlay();
 });
 
+/* =====================
+   Acciones
+   ===================== */
 function openPetal(index){
   const data = petalData[index];
-  bigImage.src = data.img;
-  overlay.classList.add("show");
+  // Asegurar que no quede la imagen anterior visible por el fade
+  overlayText.textContent = '';
+  bigImage.src = '';
 
-  // Mostrar la frase debajo de la imagen
-  document.getElementById("overlayText").textContent = data.text || "";
+  const im = imageCache.get(data.img) || new Image();
+  if(!imageCache.has(data.img)){ im.src = data.img; }
 
-  ctx.closePath();
-  if (fill) ctx.fill();
-  if (stroke) ctx.stroke();
+  // Mostrar overlay solo cuando la imagen está lista (evita "imagen anterior pegada")
+  im.decode?.().then(()=>{
+    bigImage.src = im.src;
+    overlayText.textContent = data.text || '';
+    showOverlay();
+  }).catch(()=>{
+    // Fallback si decode no está
+    bigImage.onload = ()=>{ showOverlay(); };
+    bigImage.src = data.img;
+    overlayText.textContent = data.text || '';
+  });
+
+  // Audio del pétalo (un solo elemento y en orden)
+  stopAllAudio();
+  petalAudio.src = data.audio;
+  petalAudio.currentTime = 0;
+  petalAudio.play().catch(()=>{ /* Algunos navegadores requieren otro gesto */ });
 }
 
-function drawStem(x,groundY,height){
-  const topY = groundY-height;
-  ctx.save();
-  ctx.lineWidth=14*scaleFactor; ctx.strokeStyle="#0a3b12"; ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(x+6*scaleFactor,groundY);
-  ctx.bezierCurveTo(x+18*scaleFactor,groundY-height*0.3, x-18*scaleFactor,topY+height*0.4, x+2*scaleFactor,topY);
-  ctx.stroke();
-  ctx.strokeStyle="#17a12f"; ctx.lineWidth=10*scaleFactor;
-  ctx.beginPath(); ctx.moveTo(x,groundY);
-  ctx.bezierCurveTo(x+12*scaleFactor,groundY-height*0.28, x-12*scaleFactor,topY+height*0.38, x,topY);
-  ctx.stroke(); ctx.restore();
-
+function showOverlay(){
+  overlay.classList.add('show');
+  overlay.setAttribute('aria-hidden', 'false');
+  overlayOpen = true;
+}
+function hideOverlay(){
+  overlay.classList.remove('show');
+  overlay.setAttribute('aria-hidden', 'true');
+  overlayOpen = false;
+  stopAllAudio();
 }
 
-function drawLeaves(x,groundY,height,opacity){
-  ctx.save(); ctx.globalAlpha=0.75*opacity;
-  ctx.fillStyle="#0f8b3f";
-  ctx.beginPath();
-  ctx.moveTo(x-6,groundY-Math.round(height*0.4));
-  ctx.bezierCurveTo(x-120*scaleFactor,groundY-Math.round(height*0.55),
-                    x-80*scaleFactor,groundY-Math.round(height*0.1),
-                    x+2,groundY-Math.round(height*0.2));
-  ctx.fill();
-  ctx.fillStyle="#18b24e";
-  ctx.beginPath();
-  ctx.moveTo(x+6,groundY-Math.round(height*0.55));
-  ctx.bezierCurveTo(x+120*scaleFactor,groundY-Math.round(height*0.75),
-                    x+80*scaleFactor,groundY-Math.round(height*0.25),
-                    x+2,groundY-Math.round(height*0.35));
-  ctx.fill(); ctx.restore();
+function doWater(){
+  if(stage<MAX_STAGES){ stage+=1; }
+  watering=true; waterTimer=0;
 }
-
-function drawBud(x,y){
-  ctx.save(); ctx.translate(x,y);
-  ctx.fillStyle="#ffe066"; // Amarillo para el capullo exterior
-  const s=18+(stage*6);
-  const scaledS = s*scaleFactor;
-  ctx.beginPath(); ctx.ellipse(0,0,scaledS*0.9,scaledS*1.3,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle="#111"; // Negro para el centro del capullo
-  ctx.beginPath(); ctx.ellipse(0,0,Math.max(6,scaledS*0.4),Math.max(6,scaledS*0.4),0,0,Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-
-// drag regadera
-canvas.addEventListener('mousedown', ev=>{
-  const rect=canvas.getBoundingClientRect();
-  const mx=ev.clientX-rect.left, my=ev.clientY-rect.top;
-  if(mx>=canPos.x && mx<=canPos.x+canPos.w && my>=canPos.y && my<=canPos.y+canPos.h){
-    dragging=true; offsetX=mx-canPos.x; offsetY=my-canPos.y;
-  }
-});
-canvas.addEventListener('mousemove', ev=>{
-  if(dragging){ const rect=canvas.getBoundingClientRect();
-    canPos.x=ev.clientX-rect.left-offsetX;
-    canPos.y=ev.clientY-rect.top-offsetY;
-  }
-});
-canvas.addEventListener('mouseup', ()=>{ dragging=false; returnCanToStart(); });
-canvas.addEventListener('mouseleave', ()=>{ dragging=false; returnCanToStart(); });
-// Eventos táctiles para móviles
-canvas.addEventListener('touchstart', ev => {
-  const rect = canvas.getBoundingClientRect();
-  const touch = ev.touches[0];
-  const mx = touch.clientX - rect.left, my = touch.clientY - rect.top;
-  if(mx >= canPos.x && mx <= canPos.x + canPos.w && my >= canPos.y && my <= canPos.y + canPos.h){
-    dragging = true; offsetX = mx - canPos.x; offsetY = my - canPos.y;
-    ev.preventDefault();
-  }
-});
-canvas.addEventListener('touchmove', ev => {
-  if(dragging){
-    const rect = canvas.getBoundingClientRect();
-    const touch = ev.touches[0];
-    canPos.x = touch.clientX - rect.left - offsetX;
-    canPos.y = touch.clientY - rect.top - offsetY;
-    ev.preventDefault();
-  }
-});
-canvas.addEventListener('touchend', () => { dragging = false; returnCanToStart(); });
-canvas.addEventListener('touchcancel', () => { dragging = false; returnCanToStart(); });
 
 function returnCanToStart(){
-  const anim = setInterval(()=>{
+  if(returnAnim) { clearInterval(returnAnim); returnAnim = null; }
+  returnAnim = setInterval(()=>{
     const dx = canStartPos.x - canPos.x;
     const dy = canStartPos.y - canPos.y;
     if(Math.abs(dx)<1 && Math.abs(dy)<1){
-      canPos.x = canStartPos.x;
-      canPos.y = canStartPos.y;
-      clearInterval(anim);
-    } else {
-      canPos.x += dx*0.2;
-      canPos.y += dy*0.2;
-    }
+      canPos.x = canStartPos.x; canPos.y = canStartPos.y;
+      clearInterval(returnAnim); returnAnim = null;
+    } else { canPos.x += dx*0.2; canPos.y += dy*0.2; }
   }, 16);
 }
+
+/* =====================
+   Dibujo de elementos
+   ===================== */
+function drawWaterCan(ctx,x,y,scale=1,tipping=false){
+  ctx.save(); ctx.translate(x,y);
+  const targetAngle = tipping ? -0.25 : 0;
+  canAngle += (targetAngle - canAngle)*0.1;
+  ctx.rotate(canAngle); ctx.scale(scale,scale);
+  ctx.fillStyle='#b0c4de';
+  roundRect(ctx,0,20,80,48,8,true,false);
+  ctx.beginPath(); ctx.moveTo(78,34); ctx.bezierCurveTo(110,18,110,34,78,54); ctx.fill();
+  ctx.strokeStyle='#9aa9b8'; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(18,16,22,-1.2,0.8); ctx.stroke();
+  ctx.restore();
+  if (tipping){
+    const mouthX = x+95, mouthY = y+25;
+    for(let i=0;i<12;i++){
+      const spread = (i-6)*0.08;
+      const dx = mouthX + Math.cos(spread)*(Math.random()*20);
+      const dropSpeed = 120;
+      const dy = mouthY + i*10 + (Date.now()/dropSpeed % 100);
+      ctx.beginPath(); ctx.fillStyle='rgba(150,200,255,0.9)';
+      ctx.ellipse(dx, dy, 3, 8, Math.PI/6, 0, Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+function roundRect(ctx,x,y,w,h,r,fill=true,stroke=true){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y, x+w,y+h, r);
+  ctx.arcTo(x+w,y+h, x,y+h, r);
+  ctx.arcTo(x,y+h, x,y, r);
+  ctx.arcTo(x,y, x+w,y, r);
+  ctx.closePath(); if (fill) ctx.fill(); if (stroke) ctx.stroke();
+}
+
+function drawStem(x,groundY,height){
+  const topY = groundY-height; ctx.save();
+  ctx.lineWidth=14*scaleFactor; ctx.strokeStyle='#0a3b12'; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x+6*scaleFactor,groundY);
+  ctx.bezierCurveTo(x+18*scaleFactor,groundY-height*0.3, x-18*scaleFactor,topY+height*0.4, x+2*scaleFactor,topY); ctx.stroke();
+  ctx.strokeStyle='#17a12f'; ctx.lineWidth=10*scaleFactor;
+  ctx.beginPath(); ctx.moveTo(x,groundY);
+  ctx.bezierCurveTo(x+12*scaleFactor,groundY-height*0.28, x-12*scaleFactor,topY+height*0.38, x,topY); ctx.stroke();
+  ctx.restore();
+}
+
+function drawLeaves(x,groundY,height,opacity){
+  ctx.save(); ctx.globalAlpha=0.75*opacity; ctx.fillStyle='#0f8b3f';
+  ctx.beginPath(); ctx.moveTo(x-6,groundY-Math.round(height*0.4));
+  ctx.bezierCurveTo(x-120*scaleFactor,groundY-Math.round(height*0.55), x-80*scaleFactor,groundY-Math.round(height*0.1), x+2,groundY-Math.round(height*0.2)); ctx.fill();
+  ctx.fillStyle='#18b24e'; ctx.beginPath(); ctx.moveTo(x+6,groundY-Math.round(height*0.55));
+  ctx.bezierCurveTo(x+120*scaleFactor,groundY-Math.round(height*0.75), x+80*scaleFactor,groundY-Math.round(height*0.25), x+2,groundY-Math.round(height*0.35)); ctx.fill();
+  ctx.restore();
+}
+
+function drawBud(x,y){
+  ctx.save(); ctx.translate(x,y); ctx.fillStyle='#ffe066';
+  const s=18+(stage*6); const scaledS = s*scaleFactor;
+  ctx.beginPath(); ctx.ellipse(0,0,scaledS*0.9,scaledS*1.3,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#111'; ctx.beginPath(); ctx.ellipse(0,0,Math.max(6,scaledS*0.4),Math.max(6,scaledS*0.4),0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+/* =====================
+   Vida del documento
+   ===================== */
+// Pausar si cambia la pestaña (evita desorden de audio en móviles)
+window.addEventListener('visibilitychange', ()=>{ if(document.hidden){ stopAllAudio(); } });
 
 animate();
 </script>
 </body>
 </html>
+
+
