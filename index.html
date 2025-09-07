@@ -1,7 +1,7 @@
-<!DOCTYPE html> 
+
+
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
+<head>  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Flor interactiva</title>
   <style>
@@ -15,104 +15,6 @@
       font-family: Arial, sans-serif;
       color: #fff;
       user-select: none;
-      overflow: hidden;
-    }
-    canvas{
-      display:block;
-      background: rgb(179, 236, 165);
-      border-radius:8px;
-      box-shadow: 0 6px 25px rgba(0,0,0,0.7);
-    }
-
-    /* ⬅️ añadido: overlay para mostrar la imagen ampliada */
-    #overlay {
-  position: fixed;
-  top:0; left:0;
-  width:100%; height:100%;
-  background: rgba(0,0,0,0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column; /* <-- Añade esta línea */
-  visibility: hidden;
-  opacity: 0;
-  transition: opacity 0.4s;
-}
-    #overlay img{
-      max-width: 80%;
-      max-height: 80%;
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(255,255,255,0.8);
-    }
-    #overlay.show{
-      visibility: visible;
-      opacity: 1;
-    }
-  </style>
-</head>
-<audio id="mainSong" src="principal.mp3"></audio>
-<body>
-  <canvas id="c"></canvas>
-
-  <!-- ⬅️ añadido: overlay para imágenes -->
-  <div id="overlay">
-  <img id="bigImage" src="">
-  <div id="overlayText" style="margin-top:20px; color:#fff; font-size:1.3em; text-align:center; width:100%;"></div>
-</div>
-
-<script>
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-
-let W = window.innerWidth;
-let H = window.innerHeight;
-
-// base flor (se actualizará en resize)
-let baseX = W/2;
-let baseY = H - 40;
-
-// crecimiento
-const MAX_STAGES = 6;
-let stage = 0, watering = false, waterTimer = 0;
-let stemCurrent = 40, stemTarget = 40;
-let leafOpacity = 0, petalScale = 0, blossomOpen = 0;
-
-// regadera
-let canPos = { x: 100, y: H - 150, w: 120, h: 90 };
-const canStartPos = { x: 100, y: H - 150 };
-let dragging=false, offsetX=0, offsetY=0;
-let canAngle = 0;
-
-// factor escala
-const scaleFactor = 1.4;
-
-// ⬅️ añadido: recursos de pétalos
-const petalData = [
-  {img:"img1.jpg", audio:"audio1.mp3", text:"Eres mi inspiración 💖"},
-  {img:"img2.jpg", audio:"audio2.mp3", text:"Contigo todo es mejor 🌹"},
-  {img:"img3.jpg", audio:"audio3.mp3", text:"Eres mi felicidad ✨"},
-  {img:"img4.jpg", audio:"audio4.mp3", text:"Gracias por existir 💕"},
-  {img:"img5.jpg", audio:"audio5.mp3", text:"Nuestro amor florece 🌸"},
-  {img:"img6.jpg", audio:"audio6.mp3", text:"Eres mi sol ☀️"},
-  {img:"img7.jpg", audio:"audio7.mp3", text:"Te quiero infinito 💫"},
-  {img:"img8.jpg", audio:"audio8.mp3", text:"Eres mi todo ❤️"}
-
-];
-let petalHitboxes = []; // guardará zonas de clic
-let currentAudio = null;
-let mostrarMensajeCentral = false;
-let mensajeCentral = "";
-const mainSong = document.getElementById("mainSong");
-// overlay elementos
-const overlay = document.getElementById("overlay");
-const bigImage = document.getElementById("bigImage");
-
-// cerrar overlay al hacer clic afuera
-overlay.addEventListener("click", ()=>{
-  overlay.classList.remove("show");
-  if(currentAudio){ currentAudio.pause(); currentAudio=null; }
-});
-
 // función para actualizar tamaño
 function resizeCanvas(){
     canvas.width = window.innerWidth;
@@ -276,57 +178,6 @@ function openPetal(index){
   // Mostrar la frase debajo de la imagen
   document.getElementById("overlayText").textContent = data.text || "";
 
-  if(currentAudio){ currentAudio.pause(); }
-  currentAudio = new Audio(data.audio);
-  currentAudio.play();
-}
-
-function doWater(){
-  if(stage<MAX_STAGES){ stage+=1; }
-  watering=true; waterTimer=0;
-}
-
-// ... (regadera, tallo, hojas, etc. igual que antes) ...
-
-function drawWaterCan(ctx,x,y,scale=1,tipping=false){
-  ctx.save();
-  ctx.translate(x,y);
-  const targetAngle = tipping ? -0.25 : 0;
-  canAngle += (targetAngle - canAngle)*0.1;
-  ctx.rotate(canAngle);
-  ctx.scale(scale,scale);
-  ctx.fillStyle="#b0c4de";
-  roundRect(ctx,0,20,80,48,8,true,false);
-  ctx.beginPath();
-  ctx.moveTo(78,34);
-  ctx.bezierCurveTo(110,18,110,34,78,54);
-  ctx.fill();
-  ctx.strokeStyle="#9aa9b8"; ctx.lineWidth=6;
-  ctx.beginPath(); ctx.arc(18,16,22,-1.2,0.8); ctx.stroke();
-  ctx.restore();
-
-  if (tipping){
-    const mouthX = x+95, mouthY = y+25;
-    for(let i=0;i<12;i++){
-      const spread = (i-6)*0.08;
-      const dx = mouthX + Math.cos(spread)*(Math.random()*20);
-      const dropSpeed = 120;
-      const dy = mouthY + i*10 + (Date.now()/dropSpeed % 100);
-      ctx.beginPath();
-      ctx.fillStyle="rgba(150,200,255,0.9)";
-      ctx.ellipse(dx, dy, 3, 8, Math.PI/6, 0, Math.PI*2);
-      ctx.fill();
-    }
-  }
-}
-
-function roundRect(ctx,x,y,w,h,r,fill=true,stroke=true){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y, x+w,y+h, r);
-  ctx.arcTo(x+w,y+h, x,y+h, r);
-  ctx.arcTo(x,y+h, x,y, r);
-  ctx.arcTo(x,y, x+w,y, r);
   ctx.closePath();
   if (fill) ctx.fill();
   if (stroke) ctx.stroke();
@@ -432,4 +283,3 @@ animate();
 </script>
 </body>
 </html>
-
