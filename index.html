@@ -144,9 +144,7 @@ function resizeCanvas(){
   canvas.height = window.innerHeight;
   W = canvas.width; H = canvas.height;
   baseX = W/2; baseY = H - 40;
-    // 🔹 Cambiar posición inicial de la regadera
-    canStartPos.x = W * 0.1;   // 10% desde la izquierda
-    canStartPos.y = H - 200;   // más arriba del suelo
+   canStartPos.x = 0.10; canStartPos.y = H - 150;
 
   if(!dragging){ canPos.x = canStartPos.x; canPos.y = canStartPos.y; }
 }
@@ -460,5 +458,6 @@ animate();
 </script>
 </body>
 </html>
+
 
 
