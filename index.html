@@ -201,7 +201,7 @@ function drawScene(){
       // 📱 Ajustar tamaño dinámico según pantalla
   let fontSizeMain = Math.min(W, H) * 0.06;  // 6% del lado menor
   let fontSizeSub  = Math.min(W, H) * 0.045; // 4.5% del lado menor
-    ctx.font = 'bold 38px Arial';
+    ctx.font = `bold ${fontSizeMain}px Arial`;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     ctx.shadowColor = '#ff69b4';
@@ -458,6 +458,7 @@ animate();
 </script>
 </body>
 </html>
+
 
 
 
