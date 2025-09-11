@@ -301,7 +301,7 @@ function handleTap(ev){
   }
 
   // Luego, verifica pétalos
-  const hitboxFactor = 1.4; // 🔹 aumenta la zona táctil (ajústalo 1.2 - 1.8 según necesidad)
+  const hitboxFactor = 2; // 🔹 aumenta la zona táctil (ajústalo 1.2 - 1.8 según necesidad)
 for(const p of petalHitboxes){
   const dx = mx - p.x, dy = my - p.y;
   if(dx*dx + dy*dy < (p.r * hitboxFactor) * (p.r * hitboxFactor)){
@@ -459,6 +459,7 @@ animate();
 </script>
 </body>
 </html>
+
 
 
 
