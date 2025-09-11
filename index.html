@@ -331,6 +331,7 @@ overlay.addEventListener('click', ()=>{
 function openPetal(index){
   const data = petalData[index];
   // Asegurar que no quede la imagen anterior visible por el fade
+   hideOverlay();
   overlayText.textContent = '';
   bigImage.src = '';
 
@@ -459,6 +460,7 @@ animate();
 </script>
 </body>
 </html>
+
 
 
 
