@@ -231,7 +231,11 @@ function drawFlower(x,y,openFactor){
     ctx.fillStyle=g;
     ctx.beginPath(); ctx.ellipse(0,0,petalSize*(0.6+0.4*spread),petalSize*(1.1-0.2*spread),0,0,Math.PI*2); ctx.fill();
     ctx.restore();
-    petalHitboxes.push({x:x+rx, y:y+ry, r:petalSize, index:i});
+    petalHitboxes.push({x:x: x + rx,
+  y: y + ry,
+  rx: petalSize * 0.8,  // radio horizontal aproximado
+  ry: petalSize * 1.2,  // radio vertical aproximado
+  index: ix+rx, y:y+ry, r:petalSize, index:i});
   }
   const baseCenter = 20; const maxCenter = 50;
   const centerR = (baseCenter + (maxCenter - baseCenter) * blossomOpen) * scaleFactor;
@@ -302,13 +306,16 @@ function handleTap(ev){
 
   // Luego, verifica pétalos
   const hitboxFactor = 3.0; // 🔹 aumenta la zona táctil (ajústalo 1.2 - 1.8 según necesidad)
-for(const p of petalHitboxes){
-  const dx = mx - p.x, dy = my - p.y;
-  if(dx*dx + dy*dy < (p.r * hitboxFactor) * (p.r * hitboxFactor)){
+// Luego, verifica pétalos
+for (const p of petalHitboxes) {
+  const dx = mx - p.x;
+  const dy = my - p.y;
+  // comprobación dentro de la elipse
+  if ((dx*dx)/(p.rx*p.rx) + (dy*dy)/(p.ry*p.ry) <= 1) {
     openPetal(p.index);
     break;
-    }
   }
+}
 }
 
 canvas.addEventListener('mousedown', handlePointerDown, { passive:false });
@@ -460,6 +467,7 @@ animate();
 </script>
 </body>
 </html>
+
 
 
 
