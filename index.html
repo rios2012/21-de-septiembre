@@ -144,8 +144,7 @@ function resizeCanvas(){
   canvas.height = window.innerHeight;
   W = canvas.width; H = canvas.height;
   baseX = W/2; baseY = H - 40;
-   canStartPos.x = 0.10; canStartPos.y = H - 150;
-
+  canStartPos.x = 0.10; canStartPos.y = H - 150;
   if(!dragging){ canPos.x = canStartPos.x; canPos.y = canStartPos.y; }
 }
 window.addEventListener('resize', resizeCanvas, { passive: true });
@@ -201,7 +200,7 @@ function drawScene(){
       // 📱 Ajustar tamaño dinámico según pantalla
   let fontSizeMain = Math.min(W, H) * 0.06;  // 6% del lado menor
   let fontSizeSub  = Math.min(W, H) * 0.045; // 4.5% del lado menor
-    ctx.font = `bold ${fontSizeMain}px Arial`;
+   ctx.font = `bold ${fontSizeMain}px Arial`;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     ctx.shadowColor = '#ff69b4';
@@ -231,11 +230,7 @@ function drawFlower(x,y,openFactor){
     ctx.fillStyle=g;
     ctx.beginPath(); ctx.ellipse(0,0,petalSize*(0.6+0.4*spread),petalSize*(1.1-0.2*spread),0,0,Math.PI*2); ctx.fill();
     ctx.restore();
-    petalHitboxes.push({x:x: x + rx,
-  y: y + ry,
-  rx: petalSize * 0.8,  // radio horizontal aproximado
-  ry: petalSize * 1.2,  // radio vertical aproximado
-  index: ix+rx, y:y+ry, r:petalSize, index:i});
+    petalHitboxes.push({x:x+rx, y:y+ry, r:petalSize, index:i});
   }
   const baseCenter = 20; const maxCenter = 50;
   const centerR = (baseCenter + (maxCenter - baseCenter) * blossomOpen) * scaleFactor;
@@ -305,17 +300,14 @@ function handleTap(ev){
   }
 
   // Luego, verifica pétalos
-  const hitboxFactor = 3.0; // 🔹 aumenta la zona táctil (ajústalo 1.2 - 1.8 según necesidad)
-// Luego, verifica pétalos
-for (const p of petalHitboxes) {
-  const dx = mx - p.x;
-  const dy = my - p.y;
-  // comprobación dentro de la elipse
-  if ((dx*dx)/(p.rx*p.rx) + (dy*dy)/(p.ry*p.ry) <= 1) {
+  const hitboxFactor = 4.0; // 🔹 aumenta la zona táctil (ajústalo 1.2 - 1.8 según necesidad)
+for(const p of petalHitboxs){
+  const dx = mx - p.x, dy = my - p.y;
+  if(dx*dx + dy*dy < (p.r * hitboxFactor) * (p.r * hitboxFactor)){
     openPetal(p.index);
     break;
+    }
   }
-}
 }
 
 canvas.addEventListener('mousedown', handlePointerDown, { passive:false });
@@ -338,7 +330,7 @@ overlay.addEventListener('click', ()=>{
 function openPetal(index){
   const data = petalData[index];
   // Asegurar que no quede la imagen anterior visible por el fade
-   hideOverlay();
+    hideOverlay();
   overlayText.textContent = '';
   bigImage.src = '';
 
