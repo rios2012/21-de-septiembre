@@ -300,13 +300,19 @@ function handleTap(ev){
   }
 
   // Luego, verifica pétalos
-  const hitboxFactor = 1.4; // 🔹 aumenta la zona táctil (ajústalo 1.2 - 1.8 según necesidad)
-for(const p of petalHitboxes){
-  const dx = mx - p.x, dy = my - p.y;
-  if(dx*dx + dy*dy < (p.r * hitboxFactor) * (p.r * hitboxFactor)){
-    openPetal(p.index);
-    break;
+   const hitboxFactor = 2.5; // área táctil grande para móviles
+  let petalCercano = null;
+  let menorDist = Infinity;
+  for(const p of petalHitboxes){
+    const dx = mx - p.x, dy = my - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if(dist < p.r * hitboxFactor && dist < menorDist){
+      menorDist = dist;
+      petalCercano = p;
     }
+  }
+  if(petalCercano){
+    openPetal(petalCercano.index);
   }
 }
 
@@ -459,6 +465,7 @@ animate();
 </script>
 </body>
 </html>
+
 
 
 
