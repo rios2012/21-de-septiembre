@@ -6,27 +6,30 @@
   <title>Flor interactiva (fix móviles)</title>
   <style>
     html,body{
-      height:100%;
-      margin:0;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:rgb(203, 243, 192);
-      font-family: Arial, sans-serif;
-      color:#fff;
-      user-select:none;
-      -webkit-user-select:none;
-      -webkit-touch-callout:none;
-      touch-action:none; /* evita scroll/zoom en gestos */
-      overscroll-behavior:none;
-      overflow:hidden;
+    height:100%;
+  margin:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family: Arial, sans-serif;
+  color:#fff;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+  touch-action:none;
+  overscroll-behavior:none;
+  overflow:hidden;
+
+  /* 🌅 Fondo romántico degradado */
+  background: linear-gradient(to top, #4e6780 0%, #f1b047 40%, #f79b91 70%, #f0d464 90%);
+
     }
     canvas{
-      display:block;
-      background: rgb(179, 236, 165);
-      border-radius:8px;
-      box-shadow: 0 6px 25px rgba(0,0,0,0.7);
-      touch-action:none; /* pointer events consistentes */
+     display:block;
+  border-radius:8px;
+  box-shadow: 0 6px 25px rgba(0,0,0,0.7);
+  touch-action:none;
+  background: transparent; /* 🔹 que no tape el degradado */
     }
     /* Overlay para mostrar imagen ampliada */
     #overlay{
@@ -63,7 +66,33 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let W = window.innerWidth, H = window.innerHeight;
 let baseX = W/2, baseY = H - 40;
+// Corazones flotantes en el fondo
+let corazones = [];
+function crearCorazon() {
+  const x = Math.random() * W; // posición horizontal aleatoria en toda la pantalla
+  const y = -40; // inicia arriba de la pantalla
+  const size = 24 + Math.random()*22;
+  const speed = 1.2 + Math.random()*1.8;
+  corazones.push({x, y, size, speed, alpha: 1});
+}
 
+function dibujarCorazones() {
+  for (const c of corazones) {
+    ctx.save();
+    ctx.globalAlpha = c.alpha;
+    ctx.translate(c.x, c.y);
+    ctx.scale(c.size/32, c.size/32);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-16, -16, -32, 8, 0, 32);
+    ctx.bezierCurveTo(32, 8, 16, -16, 0, 0);
+    ctx.fillStyle = "#e63946";
+    ctx.shadowColor = "#fff";
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.restore();
+  }
+}
 // Crecimiento
 const MAX_STAGES = 6;
 let stage = 0, watering = false, waterTimer = 0;
@@ -153,7 +182,18 @@ resizeCanvas();
 /* =====================
    Animación principal
    ===================== */
-function animate(){ updatePhysics(); drawScene(); requestAnimationFrame(animate); }
+function animate(){  updatePhysics();
+  // Actualiza corazones si la flor está completa
+  if(stage >= MAX_STAGES){
+    if(Math.random()<0.12) crearCorazon(); // frecuencia de aparición
+    for(const c of corazones){
+      c.y += c.speed; // baja el corazón
+      c.alpha -= 0.002; // se desvanece lentamente
+    }
+    corazones = corazones.filter(c => c.y < H+40 && c.alpha > 0.05); // elimina los que salen de pantalla
+  }
+  drawScene();
+  requestAnimationFrame(animate); }
 
 function updatePhysics(){
   stemTarget = 40 + stage * 40;
@@ -177,13 +217,18 @@ function updatePhysics(){
 
 function drawScene(){
   ctx.clearRect(0,0,W,H);
-  // suelo
-  const grad = ctx.createLinearGradient(0,H-120,0,H);
-  grad.addColorStop(0,'rgba(0,0,0,0.4)');
-  grad.addColorStop(1,'rgba(0,0,0,0.8)');
-  ctx.fillStyle = grad; ctx.fillRect(0,H-120,W,120);
-  ctx.strokeStyle = '#233'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0, baseY+6); ctx.lineTo(W, baseY+6); ctx.stroke();
+   // 💖 Dibuja corazones flotantes en el fondo
+  if(stage >= MAX_STAGES){
+    dibujarCorazones();
+  }
+  // suelo con efecto de césped
+const grad = ctx.createLinearGradient(0, H-120, 0, H);
+grad.addColorStop(0, '#228B22'); // verde césped
+grad.addColorStop(0.3, '#32CD32'); // verde lima
+grad.addColorStop(0.3, '#32CD32'); // verde lima
+grad.addColorStop(1, '#5C3317');   // marrón oscuro (abajo)
+ctx.fillStyle = grad;
+ctx.fillRect(0, H-120, W, 120);
 
   // flor
   drawStem(baseX, baseY, stemCurrent*scaleFactor);
@@ -232,11 +277,29 @@ function drawFlower(x,y,openFactor){
     ctx.restore();
     petalHitboxes.push({x:x+rx, y:y+ry, r:petalSize, index:i});
   }
-  const baseCenter = 20; const maxCenter = 50;
-  const centerR = (baseCenter + (maxCenter - baseCenter) * blossomOpen) * scaleFactor;
-  ctx.beginPath(); ctx.fillStyle='#e6b800';
-  ctx.ellipse(-10+10*openFactor,6*openFactor,centerR,centerR*0.95,0,0,Math.PI*2); ctx.fill();
-  ctx.restore();
+  const baseCenter = 20; 
+const maxCenter = 50;
+const centerR = (baseCenter + (maxCenter - baseCenter) * blossomOpen) * scaleFactor;
+
+// Crear un degradado radial
+const gradient = ctx.createRadialGradient(
+  -10 + 10 * openFactor, // x del centro
+  6 * openFactor,        // y del centro
+  0,                     // radio interno (centro)
+  -10 + 10 * openFactor, // x del centro
+  6 * openFactor,        // y del centro
+  centerR                // radio externo (borde)
+);
+gradient.addColorStop(0, '#000000');    // negro en el centro
+gradient.addColorStop(0.7, '#8B4513');  // marrón medio
+gradient.addColorStop(1, '#8B4513');    // marrón más claro en el borde
+
+ctx.beginPath();
+ctx.fillStyle = gradient;
+ctx.ellipse(-10 + 10 * openFactor, 6 * openFactor, centerR, centerR * 0.95, 0, 0, Math.PI * 2);
+ctx.fill();
+ctx.restore();
+
 }
 
 /* =====================
@@ -299,15 +362,15 @@ function handleTap(ev){
     return;
   }
 
-  // Luego, verifica pétalos
-   const hitboxFactor = 2.5; // área táctil grande para móviles
+  // Detecta el pétalo más cercano al toque
+  const hitboxFactor = 1.4; // puedes ajustar este valor si lo deseas
   let petalCercano = null;
   let menorDist = Infinity;
   for(const p of petalHitboxes){
     const dx = mx - p.x, dy = my - p.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if(dist < p.r * hitboxFactor && dist < menorDist){
-      menorDist = dist;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if(d < p.r * hitboxFactor && d < menorDist){
+      menorDist = d;
       petalCercano = p;
     }
   }
@@ -465,9 +528,3 @@ animate();
 </script>
 </body>
 </html>
-
-
-
-
-
-
