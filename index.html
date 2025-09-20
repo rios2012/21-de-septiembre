@@ -383,9 +383,19 @@ canvas.addEventListener('mousedown', handlePointerDown, { passive:false });
 canvas.addEventListener('mousemove', handlePointerMove, { passive:false });
 window.addEventListener('mouseup', handlePointerUp, { passive:true });
 
-canvas.addEventListener('touchstart', handlePointerDown, { passive:false });
+canvas.addEventListener('touchstart', function(e){
+  handlePointerDown(e);
+  // Si NO se está arrastrando la regadera, intenta abrir pétalo inmediatamente
+  if(!dragging) handleTap(e);
+}, { passive:false });
+
 canvas.addEventListener('touchmove', handlePointerMove, { passive:false });
-canvas.addEventListener('touchend', (e)=>{ handlePointerUp(e); handleTap(e); }, { passive:false });
+
+canvas.addEventListener('touchend', function(e){
+  handlePointerUp(e);
+  // Ya no es necesario llamar a handleTap aquí
+}, { passive:false });
+
 canvas.addEventListener('click', handleTap, { passive:true });
 
 // Cerrar overlay con tap/click
@@ -528,3 +538,4 @@ animate();
 </script>
 </body>
 </html>
+
